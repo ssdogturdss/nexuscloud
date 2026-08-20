@@ -1,0 +1,536 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Cloud VM Provider API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: vms
+    description: Virtual machine operations
+  - name: ssh-keys
+    description: SSH key management
+  - name: images
+    description: OS image catalog
+  - name: billing
+    description: Billing and usage
+  - name: agent
+    description: Agent connectivity
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /agent/status:
+    get:
+      operationId: getAgentStatus
+      tags: [agent]
+      summary: Check if the laptop agent is reachable
+      responses:
+        "200":
+          description: Agent connectivity status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentStatus"
+
+  /vms:
+    get:
+      operationId: listVms
+      tags: [vms]
+      summary: List all virtual machines
+      responses:
+        "200":
+          description: List of VMs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vm"
+    post:
+      operationId: createVm
+      tags: [vms]
+      summary: Provision a new virtual machine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VmInput"
+      responses:
+        "201":
+          description: VM created and provisioning started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vm"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /vms/summary:
+    get:
+      operationId: getVmSummary
+      tags: [vms]
+      summary: Get dashboard summary counts and resource totals
+      responses:
+        "200":
+          description: VM fleet summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VmSummary"
+
+  /vms/{id}:
+    get:
+      operationId: getVm
+      tags: [vms]
+      summary: Get a single VM by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: VM details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vm"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: deleteVm
+      tags: [vms]
+      summary: Delete a virtual machine (stops and destroys it)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: VM deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /vms/{id}/power:
+    post:
+      operationId: vmPowerAction
+      tags: [vms]
+      summary: Perform a power action on a VM (start, stop, reboot)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PowerAction"
+      responses:
+        "200":
+          description: Action result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vm"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /vms/{id}/sync:
+    post:
+      operationId: syncVm
+      tags: [vms]
+      summary: Sync a VM's live state from the agent into the database
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated VM
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vm"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /ssh-keys:
+    get:
+      operationId: listSshKeys
+      tags: [ssh-keys]
+      summary: List all SSH keys
+      responses:
+        "200":
+          description: List of SSH keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SshKey"
+    post:
+      operationId: createSshKey
+      tags: [ssh-keys]
+      summary: Add a new SSH public key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SshKeyInput"
+      responses:
+        "201":
+          description: SSH key added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SshKey"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /ssh-keys/{id}:
+    delete:
+      operationId: deleteSshKey
+      tags: [ssh-keys]
+      summary: Delete an SSH key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /images:
+    get:
+      operationId: listImages
+      tags: [images]
+      summary: List available OS images from the agent
+      responses:
+        "200":
+          description: OS images available on the server
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OsImage"
+
+  /billing/summary:
+    get:
+      operationId: getBillingSummary
+      tags: [billing]
+      summary: Get monthly resource usage and estimated cost
+      responses:
+        "200":
+          description: Billing summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingSummary"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    AgentStatus:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        agentUrl:
+          type: ["string", "null"]
+        version:
+          type: ["string", "null"]
+        hostInfo:
+          type: ["string", "null"]
+      required:
+        - connected
+        - agentUrl
+        - version
+        - hostInfo
+
+    Vm:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        hostname:
+          type: string
+        status:
+          type: string
+          enum: [provisioning, running, stopped, error, deleted]
+        cpuCores:
+          type: integer
+        ramMb:
+          type: integer
+        diskGb:
+          type: integer
+        ipAddress:
+          type: ["string", "null"]
+        osImageId:
+          type: integer
+        osImageName:
+          type: string
+        sshKeyId:
+          type: ["integer", "null"]
+        region:
+          type: string
+        uptimeSeconds:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - name
+        - hostname
+        - status
+        - cpuCores
+        - ramMb
+        - diskGb
+        - ipAddress
+        - osImageId
+        - osImageName
+        - sshKeyId
+        - region
+        - uptimeSeconds
+        - createdAt
+        - updatedAt
+
+    VmInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        hostname:
+          type: string
+          minLength: 1
+        cpuCores:
+          type: integer
+          minimum: 1
+        ramMb:
+          type: integer
+          minimum: 512
+        diskGb:
+          type: integer
+          minimum: 10
+        osImageId:
+          type: integer
+        sshKeyId:
+          type: ["integer", "null"]
+      required:
+        - name
+        - hostname
+        - cpuCores
+        - ramMb
+        - diskGb
+        - osImageId
+
+    PowerAction:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [start, stop, reboot]
+      required:
+        - action
+
+    VmSummary:
+      type: object
+      properties:
+        totalVms:
+          type: integer
+        runningVms:
+          type: integer
+        stoppedVms:
+          type: integer
+        totalCpuCores:
+          type: integer
+        totalRamMb:
+          type: integer
+        totalDiskGb:
+          type: integer
+        agentConnected:
+          type: boolean
+      required:
+        - totalVms
+        - runningVms
+        - stoppedVms
+        - totalCpuCores
+        - totalRamMb
+        - totalDiskGb
+        - agentConnected
+
+    SshKey:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        publicKey:
+          type: string
+        fingerprint:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - publicKey
+        - fingerprint
+        - createdAt
+
+    SshKeyInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        publicKey:
+          type: string
+          minLength: 1
+      required:
+        - name
+        - publicKey
+
+    OsImage:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: string
+        arch:
+          type: string
+        isoPath:
+          type: ["string", "null"]
+        isAvailable:
+          type: boolean
+      required:
+        - id
+        - name
+        - description
+        - version
+        - arch
+        - isoPath
+        - isAvailable
+
+    BillingSummary:
+      type: object
+      properties:
+        periodStart:
+          type: string
+        periodEnd:
+          type: string
+        totalVmHours:
+          type: number
+        estimatedCostUsd:
+          type: number
+        vmBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/VmBillingLine"
+      required:
+        - periodStart
+        - periodEnd
+        - totalVmHours
+        - estimatedCostUsd
+        - vmBreakdown
+
+    VmBillingLine:
+      type: object
+      properties:
+        vmId:
+          type: integer
+        vmName:
+          type: string
+        hoursRunning:
+          type: number
+        estimatedCostUsd:
+          type: number
+      required:
+        - vmId
+        - vmName
+        - hoursRunning
+        - estimatedCostUsd
